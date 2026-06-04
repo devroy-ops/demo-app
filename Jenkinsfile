@@ -1,22 +1,23 @@
 pipeline {
     agent any
-  
+
     environment {
-        GIT_REPO = "https://github.com/devroy-ops/demo-gitops.git"
+        GIT_REPO = "https://github.com/devroy-ops/demo-app.git"
         DOCKER_REPO = "devroy"
         IMAGE_NAME = "demo-app"
+        GITOPS_REPO = "https://github.com/devroy-ops/demo-gitops.git"
     }
 
     stages {
 
-        // ✅ CLEAN OLD WORKSPACE (VERY IMPORTANT)
+        // ✅ CLEAN WORKSPACE
         stage('Clean Workspace') {
             steps {
                 deleteDir()
             }
         }
 
-        // ✅ CLONE CODE
+        // ✅ CHECKOUT CODE (FROM demo-app)
         stage('Checkout Code') {
             steps {
                 git branch: 'master', url: "${GIT_REPO}"
@@ -38,7 +39,7 @@ pipeline {
             }
         }
 
-        // ✅ BUILD DOCKER IMAGE
+        // ✅ BUILD IMAGE
         stage('Build Docker Image') {
             steps {
                 sh '''
@@ -47,7 +48,7 @@ pipeline {
             }
         }
 
-        // ✅ PUSH DOCKER IMAGE
+        // ✅ PUSH IMAGE
         stage('Push Docker Image') {
             steps {
                 sh '''
@@ -56,7 +57,7 @@ pipeline {
             }
         }
 
-        // ✅ UPDATE GITOPS REPO (FIXED ✅)
+        // ✅ UPDATE GITOPS REPO (CORRECT WAY ✅)
         stage('Update GitOps Repo') {
             steps {
                 withCredentials([usernamePassword(
@@ -65,23 +66,22 @@ pipeline {
                     passwordVariable: 'GIT_PASS'
                 )]) {
                     sh '''
-                    echo "Updating Kubernetes manifest..."
+                    echo "Cloning GitOps repo..."
+
+                    rm -rf gitops
+                    git clone https://${GIT_USER}:${GIT_PASS}@github.com/devroy-ops/demo-gitops.git gitops
+
+                    cd gitops
+
+                    echo "Updating deployment.yaml..."
 
                     sed -i "s|image:.*|image: ${DOCKER_REPO}/${IMAGE_NAME}:${BUILD_NUMBER}|" deployment.yaml
 
-                    git config --global user.email "ci@jenkins.com"
-                    git config --global user.name "jenkins"
+                    git config user.email "ci@jenkins.com"
+                    git config user.name "jenkins"
 
                     git add deployment.yaml
-
-                    # ✅ SAFE COMMIT
                     git commit -m "[skip ci] Update image to ${BUILD_NUMBER}" || echo "No changes"
-
-                    echo "Setting authenticated remote..."
-
-                    git remote set-url origin https://${GIT_USER}:${GIT_PASS}@github.com/devroy-ops/demo-gitops.git
-
-                    git remote -v
 
                     git push origin master
                     '''
@@ -89,27 +89,21 @@ pipeline {
             }
         }
 
-        // ✅ AI LOG ANALYSIS
+        // ✅ OPTIONAL: LOG ANALYSIS
         stage('AI Log Analysis') {
             steps {
                 sh '''
                 echo "Fetching logs from frontend pod..."
 
-                POD=$(docker run --rm \
-                -v /root/.kube:/root/.kube \
-                bitnami/kubectl:latest \
-                get pod -n default -l app=frontend \
+                POD=$(kubectl get pod -n default -l app=frontend \
                 -o jsonpath="{.items[0].metadata.name}")
 
                 echo "Selected Pod: $POD"
 
-                docker run --rm \
-                -v /root/.kube:/root/.kube \
-                bitnami/kubectl:latest \
-                logs -n default $POD > logs.txt
+                kubectl logs -n default $POD > logs.txt || true
 
                 echo "Running AI log analyzer..."
-                python3 log_analyzer.py
+                python3 log_analyzer.py || true
                 '''
             }
         }
@@ -127,4 +121,4 @@ pipeline {
         }
     }
 }
-  
+
