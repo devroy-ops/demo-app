@@ -25,7 +25,7 @@ pipeline {
         stage('Build Demo App Image') {
             steps {
                 sh '''
-                docker build --network=host -t $APP_IMAGE:$TAG 
+                docker build --network=host -t $APP_IMAGE:$TAG . 
                 '''
             }
         }
