@@ -6,7 +6,7 @@ WORKDIR /app
 COPY frontend/ .
 
 # ✅ Offline build using vendor
-RUN go build -mod=vendor -o app .
+RUN go build -o app
 
 EXPOSE 8080
 CMD ["./app"]  
