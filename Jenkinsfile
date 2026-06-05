@@ -25,7 +25,7 @@ pipeline {
         stage('Build Demo App Image') {
             steps {
                 sh '''
-                docker build -t $APP_IMAGE:$TAG .
+                docker build --network=host -t $APP_IMAGE:$TAG 
                 '''
             }
         }
@@ -34,7 +34,7 @@ pipeline {
         stage('Build Frontend Image') {
             steps {
                 sh '''
-                docker build -t $FRONTEND_IMAGE:latest ./frontend
+                docker build --network=host -t $FRONTEND_IMAGE:latest ./frontend
                 '''
             }
         }
