@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "devroy/demo-app"
+        APP_IMAGE = "devroy/demo-app"
+        FRONTEND_IMAGE = "devroy/frontend"
         TAG = "${BUILD_NUMBER}"
     }
 
@@ -20,15 +21,26 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        // ✅ BUILD DEMO APP IMAGE
+        stage('Build Demo App Image') {
             steps {
                 sh '''
-                docker build -t $IMAGE_NAME:$TAG .
+                docker build -t $APP_IMAGE:$TAG .
                 '''
             }
         }
 
-        stage('Push Docker Image') {
+        // ✅ BUILD FRONTEND IMAGE (IMPORTANT FIX)
+        stage('Build Frontend Image') {
+            steps {
+                sh '''
+                docker build -t $FRONTEND_IMAGE:latest ./frontend
+                '''
+            }
+        }
+
+        // ✅ PUSH BOTH IMAGES
+        stage('Push Docker Images') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'docker-creds',
@@ -37,12 +49,15 @@ pipeline {
                 )]) {
                     sh '''
                     echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push $IMAGE_NAME:$TAG
+
+                    docker push $APP_IMAGE:$TAG
+                    docker push $FRONTEND_IMAGE:latest
                     '''
                 }
             }
         }
 
+        // ✅ UPDATE GITOPS REPO
         stage('Update GitOps Repo') {
             steps {
                 withCredentials([usernamePassword(
@@ -56,13 +71,17 @@ pipeline {
 
                     cd gitops
 
-                    sed -i "s|image:.*|image: $IMAGE_NAME:$TAG|" deployment.yaml
+                    # Update demo-app image
+                    sed -i "s|image: devroy/demo-app:.*|image: $APP_IMAGE:$TAG|" deployment.yaml
+
+                    # Update frontend image
+                    sed -i "s|image: devroy/frontend.*|image: $FRONTEND_IMAGE:latest|" microservices.yaml
 
                     git config user.email "ci@jenkins.com"
                     git config user.name "jenkins"
 
-                    git add deployment.yaml
-                    git commit -m "[skip ci] update image $TAG" || echo "no changes"
+                    git add .
+                    git commit -m "[skip ci] update images $TAG" || echo "no changes"
 
                     git push origin master
                     '''
@@ -73,10 +92,11 @@ pipeline {
 
     post {
         success {
-            echo "✅ SUCCESS"
+            echo "✅ PIPELINE SUCCESS"
         }
         failure {
-            echo "❌ FAILED"
+            echo "❌ PIPELINE FAILED"
         }
     }
 }
+
