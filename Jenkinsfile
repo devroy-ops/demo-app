@@ -75,7 +75,7 @@ pipeline {
                     sed -i "s|image: devroy/demo-app:.*|image: $APP_IMAGE:$TAG|" deployment.yaml
 
                     # Update frontend image
-                    sed -i "s|image: devroy/frontend.*|image: $FRONTEND_IMAGE:latest|" microservices.yaml
+                    sed -i "s|image:.*|image: $APP_IMAGE:$TAG|" deployment.yaml
 
                     git config user.email "ci@jenkins.com"
                     git config user.name "jenkins"
